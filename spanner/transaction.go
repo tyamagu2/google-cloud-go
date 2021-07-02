@@ -579,7 +579,7 @@ func (t *ReadOnlyTransaction) begin(ctx context.Context) error {
 
 // acquire implements txReadEnv.acquire.
 func (t *ReadOnlyTransaction) acquire(ctx context.Context) (*sessionHandle, *sppb.TransactionSelector, error) {
-	if err := checkNestedTxn(ctx); err != nil {
+	if err := checkNestedTxn(ctx, t.sp.sc.database); err != nil {
 		return nil, nil, err
 	}
 	if t.singleUse {
@@ -1117,13 +1117,13 @@ func (t *ReadWriteTransaction) rollback(ctx context.Context) {
 }
 
 // runInTransaction executes f under a read-write transaction context.
-func (t *ReadWriteTransaction) runInTransaction(ctx context.Context, f func(context.Context, *ReadWriteTransaction) error) (CommitResponse, error) {
+func (t *ReadWriteTransaction) runInTransaction(ctx context.Context, database string, f func(context.Context, *ReadWriteTransaction) error) (CommitResponse, error) {
 	var (
 		resp            CommitResponse
 		err             error
 		errDuringCommit bool
 	)
-	if err = f(context.WithValue(ctx, transactionInProgressKey{}, 1), t); err == nil {
+	if err = f(context.WithValue(ctx, transactionInProgressKey{}, database), t); err == nil {
 		// Try to commit if transaction body returns no error.
 		resp, err = t.commit(ctx, t.txOpts.CommitOptions)
 		errDuringCommit = err != nil

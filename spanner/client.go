@@ -400,8 +400,8 @@ func (c *Client) BatchReadOnlyTransactionFromID(tid BatchReadOnlyTransactionID) 
 
 type transactionInProgressKey struct{}
 
-func checkNestedTxn(ctx context.Context) error {
-	if ctx.Value(transactionInProgressKey{}) != nil {
+func checkNestedTxn(ctx context.Context, database string) error {
+	if db, ok := ctx.Value(transactionInProgressKey{}).(string); ok && db == database {
 		return spannerErrorf(codes.FailedPrecondition, "Cloud Spanner does not support nested transactions")
 	}
 	return nil
@@ -447,7 +447,7 @@ func (c *Client) ReadWriteTransactionWithOptions(ctx context.Context, f func(con
 }
 
 func (c *Client) rwTransaction(ctx context.Context, f func(context.Context, *ReadWriteTransaction) error, options TransactionOptions) (resp CommitResponse, err error) {
-	if err := checkNestedTxn(ctx); err != nil {
+	if err := checkNestedTxn(ctx, c.DatabaseName()); err != nil {
 		return resp, err
 	}
 	var (
@@ -486,7 +486,7 @@ func (c *Client) rwTransaction(ctx context.Context, f func(context.Context, *Rea
 		if err = t.begin(ctx); err != nil {
 			return err
 		}
-		resp, err = t.runInTransaction(ctx, f)
+		resp, err = t.runInTransaction(ctx, c.DatabaseName(), f)
 		return err
 	})
 	return resp, err
